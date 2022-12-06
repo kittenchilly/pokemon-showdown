@@ -2207,11 +2207,14 @@ export const Moves: {[moveid: string]: MoveData} = {
 		pp: 15,
 		priority: 0,
 		flags: {contact: 1, protect: 1, mirror: 1, slicing: 1},
-		// critRatio: 2,
-		secondary: {
-			chance: 100,
-			sideCondition: 'spikes',
+		self: {
+			onHit(source) {
+				for (const side of source.side.foeSidesWithConditions()) {
+					side.addSideCondition('spikes');
+				}
+			},
 		},
+		secondary: {}, // allows sheer force to trigger
 		target: "normal",
 		type: "Dark",
 	},
@@ -2243,13 +2246,20 @@ export const Moves: {[moveid: string]: MoveData} = {
 		priority: 0,
 		flags: {snatch: 1},
 		volatileStatus: 'charge',
-		onHit(pokemon) {
-			this.add('-activate', pokemon, 'move: Charge');
-		},
 		condition: {
-			duration: 2,
-			onRestart(pokemon) {
-				this.effectState.duration = 2;
+			onStart(pokemon, source, effect) {
+				if (effect && ['electromorphosis', 'windpower'].includes(effect.id)) {
+					this.add('-start', pokemon, 'Charge', this.activeMove!.name, '[from] ability: ' + effect.name);
+				} else {
+					this.add('-start', pokemon, 'Charge');
+				}
+			},
+			onRestart(pokemon, source, effect) {
+				if (effect && ['electromorphosis', 'windpower'].includes(effect.id)) {
+					this.add('-start', pokemon, 'Charge', this.activeMove!.name, '[from] ability: ' + effect.name);
+				} else {
+					this.add('-start', pokemon, 'Charge');
+				}
 			},
 			onBasePowerPriority: 9,
 			onBasePower(basePower, attacker, defender, move) {
@@ -2257,6 +2267,19 @@ export const Moves: {[moveid: string]: MoveData} = {
 					this.debug('charge boost');
 					return this.chainModify(2);
 				}
+			},
+			onMoveAborted(target, source, move) {
+				if (move.type === 'Electric' && move.id !== 'charge') {
+					source.removeVolatile('charge');
+				}
+			},
+			onAfterMove(target, source, move) {
+				if (move.type === 'Electric' && move.id !== 'charge') {
+					source.removeVolatile('charge');
+				}
+			},
+			onEnd(pokemon) {
+				this.add('-end', pokemon, 'Charge', '[silent]');
 			},
 		},
 		boosts: {
@@ -3742,7 +3765,6 @@ export const Moves: {[moveid: string]: MoveData} = {
 		pp: 15,
 		priority: 0,
 		flags: {contact: 1, protect: 1, mirror: 1},
-		// critRatio: 2,
 		secondary: {
 			chance: 50,
 			onHit(target, source) {
@@ -15862,7 +15884,6 @@ export const Moves: {[moveid: string]: MoveData} = {
 		pp: 15,
 		priority: 0,
 		flags: {protect: 1, mirror: 1},
-		volatileStatus: 'saltcure',
 		condition: {
 			onStart(pokemon, source) {
 				this.add('-start', pokemon, 'move: Salt Cure', '[of] ' + source);
@@ -15875,7 +15896,10 @@ export const Moves: {[moveid: string]: MoveData} = {
 				this.add('-end', pokemon, 'move: Salt Cure');
 			},
 		},
-		secondary: null,
+		secondary: {
+			chance: 100,
+			volatileStatus: 'saltcure',
+		},
 		target: "normal",
 		type: "Rock",
 	},
@@ -18436,11 +18460,14 @@ export const Moves: {[moveid: string]: MoveData} = {
 		pp: 15,
 		priority: 0,
 		flags: {contact: 1, protect: 1, mirror: 1, slicing: 1},
-		// critRatio: 2,
-		secondary: {
-			chance: 100,
-			sideCondition: 'stealthrock',
+		self: {
+			onHit(source) {
+				for (const side of source.side.foeSidesWithConditions()) {
+					side.addSideCondition('stealthrock');
+				}
+			},
 		},
+		secondary: {}, // allows sheer force to trigger
 		target: "normal",
 		type: "Rock",
 	},
