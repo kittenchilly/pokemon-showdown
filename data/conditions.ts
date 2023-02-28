@@ -162,12 +162,13 @@ export const Conditions: {[k: string]: ConditionData} = {
 		name: 'confusion',
 		// this is a volatile status
 		onStart(target, source, sourceEffect) {
-			if (sourceEffect && sourceEffect.id === 'lockedmove') {
+			if (sourceEffect?.id === 'lockedmove') {
 				this.add('-start', target, 'confusion', '[fatigue]');
 			} else {
 				this.add('-start', target, 'confusion');
 			}
-			this.effectState.time = this.random(2, 6);
+			const min = sourceEffect?.id === 'axekick' ? 3 : 2;
+			this.effectState.time = this.random(min, 6);
 		},
 		onEnd(target) {
 			this.add('-end', target, 'confusion');
@@ -544,7 +545,7 @@ export const Conditions: {[k: string]: ConditionData} = {
 				this.debug('Sunny Day fire boost');
 				return this.chainModify(1.5);
 			}
-			if (move.type === 'Water') {
+			if (move.type === 'Water' && move.id !== 'hydrosteam') {
 				this.debug('Sunny Day water suppress');
 				return this.chainModify(0.5);
 			}
@@ -714,7 +715,7 @@ export const Conditions: {[k: string]: ConditionData} = {
 		onEffectivenessPriority: -1,
 		onEffectiveness(typeMod, target, type, move) {
 			if (move && move.effectType === 'Move' && move.category !== 'Status' && type === 'Flying' && typeMod > 0) {
-				this.add('-activate', '', 'deltastream');
+				this.add('-fieldactivate', 'Delta Stream');
 				return 0;
 			}
 		},

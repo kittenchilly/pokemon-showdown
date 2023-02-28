@@ -26,6 +26,39 @@ import {BattleActions} from './battle-actions';
 import {Utils} from '../lib';
 declare const __version: any;
 
+export type ChannelID = 0 | 1 | 2 | 3 | 4;
+
+export type ChannelMessages<T extends ChannelID | -1> = Record<T, string[]>;
+
+const splitRegex = /^\|split\|p([1234])\n(.*)\n(.*)|.+/gm;
+
+export function extractChannelMessages<T extends ChannelID | -1>(message: string, channelIds: T[]): ChannelMessages<T> {
+	const channelIdSet = new Set(channelIds);
+	const channelMessages: ChannelMessages<ChannelID | -1> = {
+		[-1]: [],
+		0: [],
+		1: [],
+		2: [],
+		3: [],
+		4: [],
+	};
+
+	for (const [lineMatch, playerMatch, secretMessage, sharedMessage] of message.matchAll(splitRegex)) {
+		const player = playerMatch ? parseInt(playerMatch) : 0;
+		for (const channelId of channelIdSet) {
+			let line = lineMatch;
+			if (player) {
+				line = channelId === -1 || player === channelId ? secretMessage : sharedMessage;
+				if (!line) continue;
+			}
+			channelMessages[channelId].push(line);
+		}
+	}
+
+	return channelMessages;
+}
+
+
 interface BattleOptions {
 	format?: Format;
 	formatid: ID;
@@ -39,6 +72,7 @@ interface BattleOptions {
 	p3?: PlayerOptions; // Player 3 data
 	p4?: PlayerOptions; // Player 4 data
 	debug?: boolean; // show debug mode option
+	forceRandomChance?: boolean; // force Battle#randomChance to always return true or false (used in some tests)
 	deserialized?: boolean;
 	strictChoices?: boolean; // whether invalid choices should throw
 }
@@ -77,6 +111,7 @@ export type RequestState = 'teampreview' | 'move' | 'switch' | '';
 export class Battle {
 	readonly id: ID;
 	readonly debugMode: boolean;
+	readonly forceRandomChance: boolean | null;
 	readonly deserialized: boolean;
 	readonly strictChoices: boolean;
 	readonly format: Format;
@@ -174,6 +209,9 @@ export class Battle {
 
 		this.id = '';
 		this.debugMode = format.debug || !!options.debug;
+		// Require debug mode and explicitly passed true/false
+		this.forceRandomChance = (this.debugMode && typeof options.forceRandomChance === 'boolean') ?
+			options.forceRandomChance : null;
 		this.deserialized = !!options.deserialized;
 		this.strictChoices = !!options.strictChoices;
 		this.formatData = {id: format.id};
@@ -307,6 +345,7 @@ export class Battle {
 	}
 
 	randomChance(numerator: number, denominator: number) {
+		if (this.forceRandomChance !== null) return this.forceRandomChance;
 		return this.prng.randomChance(numerator, denominator);
 	}
 
@@ -1479,7 +1518,7 @@ export class Battle {
 					}
 				}
 
-				if (this.gen >= 7) {
+				if (this.gen >= 7 && !pokemon.terastallized) {
 					// In Gen 7, the real type of every Pokemon is visible to all players via the bottom screen while making choices
 					const seenPokemon = pokemon.illusion || pokemon;
 					const realTypeString = seenPokemon.getTypes(true).join('/');
@@ -1791,7 +1830,9 @@ export class Battle {
 		if (!target?.hp) return 0;
 		if (!target.isActive) return false;
 		if (this.gen > 5 && !target.side.foePokemonLeft()) return false;
-		boost = this.runEvent('Boost', target, source, effect, {...boost});
+		boost = this.runEvent('ChangeBoost', target, source, effect, {...boost});
+		boost = target.getCappedBoost(boost);
+		boost = this.runEvent('TryBoost', target, source, effect, {...boost});
 		let success = null;
 		let boosted = isSecondary;
 		let boostName: BoostID;
@@ -1801,15 +1842,15 @@ export class Battle {
 			};
 			let boostBy = target.boostBy(currentBoost);
 			let msg = '-boost';
-			if (boost[boostName]! < 0) {
+			if (boost[boostName]! < 0 || target.boosts[boostName] === -6) {
 				msg = '-unboost';
 				boostBy = -boostBy;
 			}
 			if (boostBy) {
 				success = true;
 				switch (effect?.id) {
-				case 'bellydrum':
-					this.add('-setboost', target, 'atk', target.boosts['atk'], '[from] move: Belly Drum');
+				case 'bellydrum': case 'angerpoint':
+					this.add('-setboost', target, 'atk', target.boosts['atk'], '[from] ' + effect.fullname);
 					break;
 				case 'bellydrum2':
 					this.add(msg, target, boostName, boostBy, '[silent]');
@@ -1949,7 +1990,17 @@ export class Battle {
 					this.faintMessages(true);
 					if (this.gen <= 2) {
 						target.faint();
-						if (this.gen <= 1) this.queue.clear();
+						if (this.gen <= 1) {
+							this.queue.clear();
+							// Fainting clears accumulated Bide damage
+							for (const pokemon of this.getAllActive()) {
+								if (pokemon.volatiles['bide'] && pokemon.volatiles['bide'].damage) {
+									pokemon.volatiles['bide'].damage = 0;
+									this.hint("Desync Clause Mod activated!");
+									this.hint("In Gen 1, Bide's accumulated damage is reset to 0 when a Pokemon faints.");
+								}
+							}
+						}
 					}
 				}
 			}
@@ -2329,6 +2380,14 @@ export class Battle {
 			// in gen 1, fainting skips the rest of the turn
 			// residuals don't exist in gen 1
 			this.queue.clear();
+			// Fainting clears accumulated Bide damage
+			for (const pokemon of this.getAllActive()) {
+				if (pokemon.volatiles['bide'] && pokemon.volatiles['bide'].damage) {
+					pokemon.volatiles['bide'].damage = 0;
+					this.hint("Desync Clause Mod activated!");
+					this.hint("In Gen 1, Bide's accumulated damage is reset to 0 when a Pokemon faints.");
+				}
+			}
 		} else if (this.gen <= 3 && this.gameType === 'singles') {
 			// in gen 3 or earlier, fainting in singles skips to residuals
 			for (const pokemon of this.getAllActive()) {
@@ -2553,6 +2612,24 @@ export class Battle {
 				}
 			}
 			break;
+		case 'revivalblessing':
+			action.pokemon.side.pokemonLeft++;
+			if (action.target.position < action.pokemon.side.active.length) {
+				this.queue.addChoice({
+					choice: 'instaswitch',
+					pokemon: action.target,
+					target: action.target,
+				});
+			}
+			action.target.fainted = false;
+			action.target.faintQueued = false;
+			action.target.subFainted = false;
+			action.target.status = '';
+			action.target.hp = 1; // Needed so hp functions works
+			action.target.sethp(action.target.maxhp / 2);
+			this.add('-heal', action.target, action.target.getHealth, '[from] move: Revival Blessing');
+			action.pokemon.side.removeSlotCondition(action.pokemon, 'revivalblessing');
+			break;
 		case 'runUnnerve':
 			this.singleEvent('PreStart', action.pokemon.getAbility(), action.pokemon.abilityState, action.pokemon);
 			break;
@@ -2651,12 +2728,12 @@ export class Battle {
 						reviveSwitch = true;
 						continue;
 					}
-				  pokemon.switchFlag = false;
+					pokemon.switchFlag = false;
 				}
 				if (!reviveSwitch) switches[i] = false;
 			} else if (switches[i]) {
 				for (const pokemon of this.sides[i].active) {
-					if (pokemon.switchFlag && !pokemon.skipBeforeSwitchOutEventFlag) {
+					if (pokemon.switchFlag && pokemon.switchFlag !== 'revivalblessing' && !pokemon.skipBeforeSwitchOutEventFlag) {
 						this.runEvent('BeforeSwitchOut', pokemon);
 						pokemon.skipBeforeSwitchOutEventFlag = true;
 						this.faintMessages(); // Pokemon may have fainted in BeforeSwitchOut
@@ -2882,27 +2959,9 @@ export class Battle {
 		}
 	}
 
-	static extractUpdateForSide(data: string, side: SideID | 'spectator' | 'omniscient' = 'spectator') {
-		if (side === 'omniscient') {
-			// Grab all secret data
-			return data.replace(/\n\|split\|p[1234]\n([^\n]*)\n(?:[^\n]*)/g, '\n$1');
-		}
-
-		// Grab secret data side has access to
-		switch (side) {
-		case 'p1': data = data.replace(/\n\|split\|p1\n([^\n]*)\n(?:[^\n]*)/g, '\n$1'); break;
-		case 'p2': data = data.replace(/\n\|split\|p2\n([^\n]*)\n(?:[^\n]*)/g, '\n$1'); break;
-		case 'p3': data = data.replace(/\n\|split\|p3\n([^\n]*)\n(?:[^\n]*)/g, '\n$1'); break;
-		case 'p4': data = data.replace(/\n\|split\|p4\n([^\n]*)\n(?:[^\n]*)/g, '\n$1'); break;
-		}
-
-		// Discard remaining secret data
-		// Note: the last \n? is for secret data that are empty when shared
-		return data.replace(/\n\|split\|(?:[^\n]*)\n(?:[^\n]*)\n\n?/g, '\n');
-	}
-
 	getDebugLog() {
-		return Battle.extractUpdateForSide(this.log.join('\n'), 'omniscient');
+		const channelMessages = extractChannelMessages(this.log.join('\n'), [-1]);
+		return channelMessages[-1].join('\n');
 	}
 
 	debugError(activity: string) {

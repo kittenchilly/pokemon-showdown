@@ -19,6 +19,10 @@ export const Pokedex: {[k: string]: ModdedSpeciesData} = {
 		inherit: true,
 		abilities: {0: "Steadfast", H: "Justified"},
 	},
+	giratinaorigin: {
+		inherit: true,
+		requiredItem: "Griseous Orb",
+	},
 	cresselia: {
 		inherit: true,
 		baseStats: {hp: 120, atk: 70, def: 120, spa: 75, spd: 130, spe: 85},
@@ -26,10 +30,6 @@ export const Pokedex: {[k: string]: ModdedSpeciesData} = {
 	samurotthisui: {
 		inherit: true,
 		abilities: {0: "Torrent", H: "Shell Armor"},
-	},
-	zoroarkhisui: {
-		inherit: true,
-		baseStats: {hp: 55, atk: 100, def: 60, spa: 125, spd: 60, spe: 110},
 	},
 	braviaryhisui: {
 		inherit: true,
@@ -93,6 +93,9 @@ export const Pokedex: {[k: string]: ModdedSpeciesData} = {
 	sneasler: {
 		inherit: true,
 		abilities: {0: "Pressure", H: "Poison Touch"},
+		evoType: "useItem",
+		evoItem: "Razor Claw",
+		evoCondition: "during the day",
 	},
 	enamorus: {
 		inherit: true,
