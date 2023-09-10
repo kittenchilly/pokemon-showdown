@@ -1746,13 +1746,10 @@ export const commands: Chat.ChatCommands = {
 		const DEFAULT_CALC_COMMANDS = ['honkalculator', 'honkocalc'];
 		const RANDOMS_CALC_COMMANDS = ['randomscalc', 'randbatscalc', 'rcalc'];
 		const BATTLESPOT_CALC_COMMANDS = ['bsscalc', 'cantsaycalc'];
-		const SUPPORTED_RANDOM_FORMATS = [
-			'gen8randombattle', 'gen8unratedrandombattle', 'gen7randombattle', 'gen6randombattle', 'gen5randombattle', 'gen4randombattle', 'gen3randombattle', 'gen2randombattle', 'gen1randombattle',
-		];
 		const SUPPORTED_BATTLESPOT_FORMATS = [
 			'gen5gbusingles', 'gen5gbudoubles', 'gen6battlespotsingles', 'gen6battlespotdoubles', 'gen6battlespottriples', 'gen7battlespotsingles', 'gen7battlespotdoubles', 'gen7bssfactory',
 		];
-		const isRandomBattle = (room?.battle && SUPPORTED_RANDOM_FORMATS.includes(room.battle.format));
+		const isRandomBattle = room?.battle?.format.endsWith('randombattle');
 		const isBattleSpotBattle = (room?.battle && (SUPPORTED_BATTLESPOT_FORMATS.includes(room.battle.format) ||
 			room.battle.format.includes("battlespotspecial")));
 		if (RANDOMS_CALC_COMMANDS.includes(cmd) ||
@@ -2517,11 +2514,11 @@ export const commands: Chat.ChatCommands = {
 		if (!room.settings.requestShowEnabled) {
 			return this.errorReply(`Media approvals are disabled in this room.`);
 		}
-		if (user.can('showmedia', null, room, '/show')) return this.errorReply(`Use !show instead.`);
+		if (user.can('showmedia', null, room, 'show')) return this.errorReply(`Use !show instead.`);
 		if (room.pendingApprovals?.has(user.id)) return this.errorReply('You have a request pending already.');
 		if (!toID(target)) return this.parse(`/help requestshow`);
 
-		let [link, comment] = target.split(',');
+		let [link, comment] = this.splitOne(target);
 		if (!/^https?:\/\//.test(link)) link = `https://${link}`;
 		link = encodeURI(link);
 		let dimensions;
