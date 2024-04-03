@@ -4,7 +4,7 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 		onDamagingHit(damage, target, source, move) {
 			if (target.ability === 'mummy') {
 				const sourceAbility = source.getAbility();
-				if (sourceAbility.isPermanent || sourceAbility.id === 'mummy') {
+				if (sourceAbility.flags['cantsuppress'] || sourceAbility.id === 'mummy') {
 					return;
 				}
 				if (this.checkMoveMakesContact(move, source, target, !source.isAlly(target))) {
@@ -15,7 +15,7 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 				}
 			} else {
 				const possibleAbilities = [source.ability, ...(source.m.innates || [])]
-					.filter(val => !this.dex.abilities.get(val).isPermanent && val !== 'mummy');
+					.filter(val => !this.dex.abilities.get(val).flags['cantsuppress'] && val !== 'mummy');
 				if (!possibleAbilities.length) return;
 				if (this.checkMoveMakesContact(move, source, target, !source.isAlly(target))) {
 					const abil = this.sample(possibleAbilities);
@@ -35,12 +35,6 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 			}
 		},
 	},
-	poisontouch: {
-		inherit: true,
-		// Activate after Sheer Force to make interaction determistic. The ordering for this ability is
-		// an arbitary decision, but is modelled on Stench, which is reflective of on-cart behaviour.
-		onModifyMovePriority: -1,
-	},
 	powerofalchemy: {
 		inherit: true,
 		onAllyFaint(ally) {
@@ -49,11 +43,9 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 			const isAbility = pokemon.ability === 'powerofalchemy';
 			let possibleAbilities = [ally.ability];
 			if (ally.m.innates) possibleAbilities.push(...ally.m.innates);
-			const additionalBannedAbilities = [
-				'noability', 'flowergift', 'forecast', 'hungerswitch', 'illusion', 'imposter', 'neutralizinggas', 'powerofalchemy', 'receiver', 'trace', 'wonderguard', pokemon.ability, ...(pokemon.m.innates || []),
-			];
+			const additionalBannedAbilities = [pokemon.ability, ...(pokemon.m.innates || [])];
 			possibleAbilities = possibleAbilities
-				.filter(val => !this.dex.abilities.get(val).isPermanent && !additionalBannedAbilities.includes(val));
+				.filter(val => !this.dex.abilities.get(val).flags['noreceiver'] && !additionalBannedAbilities.includes(val));
 			if (!possibleAbilities.length) return;
 			const ability = this.dex.abilities.get(possibleAbilities[this.random(possibleAbilities.length)]);
 			this.add('-ability', pokemon, ability, '[from] ability: Power of Alchemy', '[of] ' + ally);
@@ -73,11 +65,9 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 			const isAbility = pokemon.ability === 'receiver';
 			let possibleAbilities = [ally.ability];
 			if (ally.m.innates) possibleAbilities.push(...ally.m.innates);
-			const additionalBannedAbilities = [
-				'noability', 'flowergift', 'forecast', 'hungerswitch', 'illusion', 'imposter', 'neutralizinggas', 'powerofalchemy', 'receiver', 'trace', 'wonderguard', pokemon.ability, ...(pokemon.m.innates || []),
-			];
+			const additionalBannedAbilities = [pokemon.ability, ...(pokemon.m.innates || [])];
 			possibleAbilities = possibleAbilities
-				.filter(val => !this.dex.abilities.get(val).isPermanent && !additionalBannedAbilities.includes(val));
+				.filter(val => !this.dex.abilities.get(val).flags['noreceiver'] && !additionalBannedAbilities.includes(val));
 			if (!possibleAbilities.length) return;
 			const ability = this.dex.abilities.get(possibleAbilities[this.random(possibleAbilities.length)]);
 			this.add('-ability', pokemon, ability, '[from] ability: Receiver', '[of] ' + ally);
@@ -105,12 +95,9 @@ export const Abilities: {[k: string]: ModdedAbilityData} = {
 				const target = possibleTargets[rand];
 				let possibleAbilities = [target.ability];
 				if (target.m.innates) possibleAbilities.push(...target.m.innates);
-				const additionalBannedAbilities = [
-					// Zen Mode included here for compatability with Gen 5-6
-					'noability', 'flowergift', 'forecast', 'hungerswitch', 'illusion', 'imposter', 'neutralizinggas', 'powerofalchemy', 'receiver', 'trace', 'zenmode', pokemon.ability, ...(pokemon.m.innates || []),
-				];
+				const additionalBannedAbilities = [pokemon.ability, ...(pokemon.m.innates || [])];
 				possibleAbilities = possibleAbilities
-					.filter(val => !this.dex.abilities.get(val).isPermanent && !additionalBannedAbilities.includes(val));
+					.filter(val => !this.dex.abilities.get(val).flags['notrace'] && !additionalBannedAbilities.includes(val));
 				if (!possibleAbilities.length) {
 					possibleTargets.splice(rand, 1);
 					continue;
